@@ -1,6 +1,5 @@
-## create map of sites used in analysis
-# calculate site turnover
-## also map of proportion of WCBS vs tBMS in each country and region
+## create map of sites used in analysis (including creating 10km grid references)
+## calculate proportion of WCBS vs tBMS in each country and region
 
 library(ggplot2)
 library(data.table)
@@ -229,8 +228,7 @@ ggsave(site_maps, file="Output/Figures/Figure1.png", height=22, width=20, units=
 ######################################################################################################
 ######################################################################################################
 
-### count the number of tBMS and WCBS sites in each country and each region in England - filter by species
-# NOTE: map is identical if all UKBMS sites are used, rather than filtering by species
+### count the number of tBMS and WCBS sites in each country and each region in England based on the 23 species
 # Read in UKBMS data
 bmsdata <- readRDS("Data/UKBMS/sp_weeklycount_1976-2024_zerofilled.rds")
 # Filter to 2009 to 2024 
@@ -248,6 +246,20 @@ all_sites_final <- read.csv("Data/UKBMS/UKBMS_sites_location.csv", header=TRUE)
 sitedata <- all_sites_final[all_sites_final$SITENO %in% bmsdata$SITENO,]
 length(unique(sitedata$SITENO)) # 5,760
 
+# first plot a graph showing the number of tBMS and WCBS sites over time
+## count number of sites per year for each survey
+no_sites <- sitedata %>% group_by(SURVEY, YEAR) %>% summarise(no_sites=n())
+number_sites <- ggplot(data=no_sites, aes(x=YEAR, y=no_sites, fill=SURVEY))+
+  geom_bar(stat="identity")+
+  labs(y="Number of sites", x="Year")+
+  theme_bw()+
+  theme(legend.title=element_blank())
+number_sites
+ggsave(number_sites, file="Output/Figures/Number_sites.png", height=8, width=10, units="cm")
+# WCBS remained more stable over time - tBMS has increased
+
+
+### now get data prepared by county boundaries to plot a graph of proportion of WCBS sites per county
 ## remove Channel Island sites - they don't fall within the country boundaries
 sitedata <- sitedata[!grepl("WV", sitedata$GRIDREF),]
 sitedata <- sitedata[!grepl("WA", sitedata$GRIDREF),]
@@ -354,90 +366,3 @@ WCBS_sites_map <- ggplot(data=countries_regions) + geom_sf(aes(fill=prop_WCBS))+
   theme(text = element_text(size = 16))
 WCBS_sites_map
 ggsave(WCBS_sites_map, file="Output/Figures/Proportion_WCBS_sites.png", height=22, width=28, units="cm")
-
-
-######################################################################################################
-######################################################################################################
-
-### count the number of tBMS and WCBS sites in each country and each region in England - filter by species
-# NOTE: map is identical if all UKBMS sites are used, rather than filtering by species
-# Read in UKBMS data
-bmsdata <- readRDS("Data/UKBMS/sp_weeklycount_1976-2024_zerofilled.rds")
-# Filter to 2009 to 2024 
-bmsdata <- bmsdata[YEAR >= 2009]
-# Create survey ID column
-bmsdata <- bmsdata %>% dplyr::mutate(SURVEY = ifelse(SITENO<50000, "tBMS", "WCBS"))
-# filter by species
-splist <- read.csv(file="Data/UKBMS/Species_list_GAM.csv", header=TRUE)
-# filter bms data by species to get list of sites
-bmsdata <- bmsdata[bmsdata$SPECIES %in% splist$SPECIES,]
-length(unique(bmsdata$SITENO)) # 5,760
-# no site location data needed - just filter by columns required
-sitedata <- unique(bmsdata[,c("SITENO","YEAR", "SURVEY")])
-
-## count number of sites per year for each survey
-no_sites <- sitedata %>% group_by(SURVEY, YEAR) %>% summarise(no_sites=n())
-number_sites <- ggplot(data=no_sites, aes(x=YEAR, y=no_sites, fill=SURVEY))+
-  geom_bar(stat="identity")+
-  labs(y="Number of sites", x="Year")+
-  theme_bw()+
-  theme(legend.title=element_blank())
-number_sites
-ggsave(number_sites, file="Output/Figures/Number_sites.png", height=8, width=10, units="cm")
-
-# WCBS remained more stable over time - tBMS has increased
-# what about turnover?
-library(codyn)
-sitedata <- sitedata[,c(1:3)]
-sitedata$ABUNDANCE <- 1
-
-site_turnover <- turnover(df = sitedata, 
-                          time.var = "YEAR", 
-                          species.var = "SITENO", 
-                          abundance.var = "ABUNDANCE", 
-                          replicate.var = "SURVEY")
-total_turnover <- ggplot(data=site_turnover, aes(x=YEAR, y=total, colour=SURVEY))+
-  geom_line(lwd=1)+
-  labs(x="Year", y="Total turnover")+
-  scale_x_continuous(n.breaks = 10)+
-  theme_bw()+
-  theme(text = element_text(size = 16),
-        legend.title=element_blank())
-total_turnover
-ggsave(total_turnover, file="Output/Figures/Total_turnover.png", height=8, width=15, units="cm")
-
-site_turnover %>% group_by(SURVEY) %>% summarise(mean_turnover=mean(total))
-# WCBS = 0.363
-# tBMS = 0.235
-# WCBS has higher turnover compared to tBMS
-## this is driven more by sites disappearing in WCBS over time
-
-site_appearance <- turnover(df = sitedata, 
-                            time.var = "YEAR",
-                            species.var = "SITENO",
-                            abundance.var = "ABUNDANCE",
-                            replicate.var = "SURVEY",
-                            metric = "appearance")
-site_appearance %>% group_by(SURVEY) %>% summarise(mean_appearance=mean(appearance))
-# WCBS = 0.183
-# tBMS = 0.143
-## WCBS has slightly more sites appear over time
-site_disappearance <- turnover(df = sitedata, 
-                               time.var = "YEAR",
-                               species.var = "SITENO",
-                               abundance.var = "ABUNDANCE",
-                               replicate.var = "SURVEY",
-                               metric = "disappearance")
-site_disappearance %>% group_by(SURVEY) %>% summarise(mean_appearance=mean(disappearance))
-# WCBS = 0.179
-# tBMS = 0.0919
-## WCBS has more sites disappear over time compared to tBMS
-
-
-
-
-
-
-
-
-

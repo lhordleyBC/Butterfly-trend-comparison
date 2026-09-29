@@ -10,9 +10,9 @@ library(lmerTest)
 
 # Load in files
 # Growth rate data
-growth_rates <- read.csv("Output/Growth rate analysis/Growth_rate_tBMS_WCBMS.csv", header=TRUE)
+growth_rates <- read.csv("Output/Growth rate analysis/Growth_rate_tBMS_WCBS.csv", header=TRUE)
 # GAM data
-growth_rates_gam <- read.csv("Output/GAM abundance analysis/Growth_rates_tBMS_WCBS_GAM.csv", header=TRUE)
+growth_rates_gam <- read.csv("Output/GAM abundance analysis/Abundance_trends_tBMS_WCBS_GAM.csv", header=TRUE)
 # Trait data
 traits <- read.csv("Data/ecological_traits.csv", header=TRUE)
 traits2 <- read.csv("Data/mobility_spec_traits.csv", header=TRUE)

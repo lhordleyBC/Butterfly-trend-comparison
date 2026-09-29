@@ -153,92 +153,13 @@ write.csv(pa_coverage, file="Output/Landscape analysis/PA_coverage_bms_monads.cs
 
 ##
 
-## try for whole of UK
-
-UK_gridrefs <- read.csv("Data/GB_NI_gridrefs.csv")
-names <- c("GBR", "IMN", "GGY", "JEY")
-UK <- gisco_get_countries(country = names, resolution = 1)
-ggplot()+
-  geom_sf(data = UK, fill = "grey", alpha = 0.3) + 
-  geom_point(UK_gridrefs, mapping = aes(x=easting, y=northing), size=0.5)
-
-# Produce a grid of all UK 1km
-UK_gridrefs$easting <- UK_gridrefs$easting+500
-UK_gridrefs$northing <- UK_gridrefs$northing+500
-# Make a spatial df
-UK_gridrefs_sf <- st_as_sf(unique(UK_gridrefs, by=c("easting", "northing")), coords = c("easting","northing"), crs = 27700)
-
-UK_gridrefs_buffer <- st_buffer(UK_gridrefs_sf, dist=500, endCapStyle = "SQUARE") # 500m is the radius = 1km square
-
-# Join pa with UK grid
-protected <- st_read("Data/Protected areas/protected_areas_union_transf.gpkg")
-
-pa_UK <- st_intersection(protected, UK_gridrefs_buffer)
-
-# Calculate area per 1km square/geometry
-pa_UK$area <- st_area(pa_UK)
-# Convert to df
-pa_UK_df <- setDT(st_drop_geometry(pa_UK))
-# Add easting northing info
-pa_UK_df <- merge(pa_UK_df, UK_gridrefs, by = "site")
-
-# Create data frame with GB and NI 1km square easting and northings from LCM to merge in with PA data
-# This ensures that the UK-wide values are based on the same number of grid squares for LCM and PA
-lcm_gb = raster::stack("Data/Land cover/LCM2015_GB_1km_percent_cover_aggregate_class.tif")
-lcm_ni = raster::stack("Data/Land cover/lcm2015_ni_1km_percent_cover_aggregate_class.tif")
-
-lcm_gb_df <- lcm_gb_df[,c(1:2)]
-lcm_ni_df <- lcm_ni_df[,c(1:2)]
-lcm_ni_sf <- st_as_sf(unique(lcm_ni_df, by=c("x", "y")), coords = c("x","y"), crs = 29903)
-lcm_ni_sf2 <- st_transform(lcm_ni_sf, crs = 27700)
-lcm_gb_sf <- st_as_sf(unique(lcm_gb_df, by=c("x", "y")), coords = c("x","y"), crs = 27700)
-lcm_gb_ni_sf <- rbind(lcm_gb_sf, lcm_ni_sf2)
-lcm_gb_ni_df <- lcm_gb_ni_sf %>%
-  mutate(X = st_coordinates(.)[,1],
-         Y = st_coordinates(.)[,2]) %>%
-  st_drop_geometry()
-
-pa_UK_df <- merge(pa_UK_df, lcm_gb_ni_df, by.x=c("easting", "northing"), by.y=c("X", "Y"), all.y=TRUE)
-
-# Get the total area per 1km (since some will contain multiple geometries)
-pa_UK_df <- pa_UK_df[, .(area = sum(area)), by = .(site,easting,northing)]
-
-# Calculate proportion of each 1km that's protected
-pa_UK_df[, prop := as.numeric(area)/(1000*1000)]
-# Calculate percentage cover too
-pa_UK_df$perc_cover <- pa_UK_df$prop*100
-
-# Replace NAs with zeros
-pa_UK_df[is.na(pa_UK_df)] <- 0
-write.csv(pa_UK_df, file="Output/Landscape analysis/PA_coverage_all_UK.csv", row.names=FALSE)
-
-ggplot(pa_UK_df, aes(x=EAST_1K, y=NORTH_1K))+
-  geom_point(size=0.8)
-
-ggplot(lcm_ni_df, aes(x=x, y=y))+
-  geom_point(size=0.8)
-
 pa_coverage <- read.csv("Output/Landscape analysis/PA_coverage_bms_monads.csv", header=TRUE)
-# merge survey back in
-site_info <- read.csv("Data/UKBMS/UKBMS_sites_location.csv", header=TRUE)
-site_info <- unique(site_info[,c("SURVEY", "MONAD")])
-pa_coverage <- merge(pa_coverage, site_info, by="MONAD", all.x=TRUE) # 5232
 length(unique(pa_coverage$MONAD)) # 5164 unique squares 
 # 68 1 km squares which have both a tBMS and WCBS site within them 
 setDT(pa_coverage)[, .(count = uniqueN(MONAD)), by = SURVEY]
 # 3034 tBMS
 # 2198 WCBS
 # 5164 unique monads (both tBMS and WCBS together)
-pa_coverage_combined <- pa_coverage
-pa_coverage_combined$SURVEY <- "Combined"
-pa_coverage_combined <- unique(pa_coverage_combined) # 5164 monads
-
-pa_UK_df <- read.csv(file="Output/Landscape analysis/PA_coverage_all_UK.csv", header=TRUE)
-pa_UK_df$SURVEY <- "UK"
-colnames(pa_UK_df) <- c("MONAD", "EAST_1K", "NORTH_1K", "area", "prop", "perc_cover", "SURVEY")
-pa_UK_df$area <- as.numeric(pa_UK_df$area)
-
-pa_coverage <- rbind(pa_coverage, pa_UK_df)
 
 # plot area
 pa_area_sum <- pa_coverage %>% group_by(SURVEY) %>% summarise(mean=mean(area), se=2*(plotrix::std.error(area)))
